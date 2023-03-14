@@ -1,0 +1,54 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install apt dependencies
+      run: |
+        sudo apt-get update && sudo apt-get install build-essential git patch wget unzip \
+        gettext autoconf automake cmake libtool nasm ragel luarocks lua5.1 libsdl2-dev \
+        libssl-dev libffi-dev libsdl2-dev libc6-dev-i386 xutils-dev libc6-dev-i386 zlib1g zlib1g-dev \
+        gcc-multilib g++-multilib libncurses5*
+
+    - name: Setup Ndk
+      uses: nttld/setup-ndk@v1
+      id: setup-ndk
+      with:
+        ndk-version: r15c
+        add-to-path: false
+        local-cache: false
+
+    - name: Set up JDK
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'adopt' # See 'Supported distributions' for available options
+        java-version: '11'
+
+    - name: Build with Gradle
+      env:
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+      run: |
+        export NDK=${{ steps.setup-ndk.outputs.ndk-path }}
+        make update
+        make prepare
+        make example
+        echo "[   Checking Unsigned Apk   ]"
+        find ./bin/ -type f -name "*.apk"
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: app_debug_unsigned
+        path: bin
+        if-no-files-found: error
